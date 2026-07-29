@@ -64,7 +64,7 @@ public class EnemySquad : MonoBehaviour
         }
 
         // Sideways walking logic for Level >= 2: Oscillate smoothly across lanes relative to start X position
-        int currentLevel = PlayerPrefs.GetInt("CurrentLevel", 1);
+        int currentLevel = LevelManager.CurrentLevel;
         if (currentLevel >= 2)
         {
             float sideRange = 1.6f;

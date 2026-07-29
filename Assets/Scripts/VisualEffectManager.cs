@@ -8,8 +8,6 @@ public class VisualEffectManager : MonoBehaviour
     public GameObject muzzleFlashPrefab;
     public GameObject gateCrossPrefab;
     public GameObject stickmanDeathPrefab;
-    public GameObject baseDamagePrefab;
-    public GameObject confettiPrefab;
     public GameObject coinPopPrefab;
 
     private void Awake()
@@ -35,65 +33,7 @@ public class VisualEffectManager : MonoBehaviour
         if (muzzleFlashPrefab == null) muzzleFlashPrefab = CreateParticleSystemPrefab("MuzzleFlash", Color.cyan, 0.4f, 20f);
         if (gateCrossPrefab == null) gateCrossPrefab = CreateParticleSystemPrefab("GateCross", Color.green, 0.6f, 30f);
         if (stickmanDeathPrefab == null) stickmanDeathPrefab = CreateParticleSystemPrefab("StickmanDeath", Color.cyan, 0.5f, 15f);
-        if (baseDamagePrefab == null) baseDamagePrefab = CreateParticleSystemPrefab("BaseDamage", Color.red, 0.8f, 40f);
-        // Confetti particles completely disabled to maximize performance and frames-per-second
-        // if (confettiPrefab == null) confettiPrefab = CreateConfettiPrefab();
         if (coinPopPrefab == null) coinPopPrefab = CreateParticleSystemPrefab("CoinPop", new Color(1f, 0.85f, 0f), 0.5f, 10f);
-    }
-
-    private GameObject CreateConfettiPrefab()
-    {
-        GameObject go = new GameObject("Confetti_Particles");
-        ParticleSystem ps = go.AddComponent<ParticleSystem>();
-        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-        
-        var main = ps.main;
-        main.duration = 2.0f;
-        main.loop = false;
-        main.startLifetime = 2.0f;
-        main.startSpeed = 12f;
-        main.startSize = 0.35f;
-        main.gravityModifier = 0.8f; // pull down dynamically like real paper flakes
-        main.playOnAwake = false;
-
-        var emission = ps.emission;
-        emission.enabled = true;
-        emission.rateOverTime = 0;
-        emission.SetBursts(new ParticleSystem.Burst[] { new ParticleSystem.Burst(0f, 150) });
-
-        var shape = ps.shape;
-        shape.shapeType = ParticleSystemShapeType.Cone;
-        shape.angle = 35f;
-        shape.radius = 1.5f;
-
-        var colorModule = ps.colorOverLifetime;
-        colorModule.enabled = true;
-        Gradient grad = new Gradient();
-        grad.SetKeys(
-            new GradientColorKey[] { 
-                new GradientColorKey(Color.red, 0.0f), 
-                new GradientColorKey(Color.yellow, 0.25f), 
-                new GradientColorKey(Color.green, 0.5f), 
-                new GradientColorKey(Color.cyan, 0.75f), 
-                new GradientColorKey(Color.magenta, 1.0f) 
-            },
-            new GradientAlphaKey[] { 
-                new GradientAlphaKey(1.0f, 0.0f), 
-                new GradientAlphaKey(0.0f, 1.0f) 
-            }
-        );
-        colorModule.color = grad;
-
-        var renderer = go.GetComponent<ParticleSystemRenderer>();
-        Shader particleShader = Shader.Find("Universal Render Pipeline/Particles/Lit");
-        if (particleShader == null) particleShader = Shader.Find("Particles/Standard Unlit");
-        Material mat = new Material(particleShader);
-        mat.color = Color.white;
-        renderer.sharedMaterial = mat;
-
-        go.transform.SetParent(transform);
-        go.SetActive(false);
-        return go;
     }
 
     private GameObject CreateParticleSystemPrefab(string name, Color color, float duration, float speed)
@@ -175,16 +115,6 @@ public class VisualEffectManager : MonoBehaviour
     public void TriggerStickmanDeath(Vector3 position)
     {
         PlayEffect(stickmanDeathPrefab, position);
-    }
-
-    public void TriggerBaseDamage(Vector3 position)
-    {
-        // Particles completely disabled to prevent mobile performance issues and lag spikes
-    }
-
-    public void TriggerConfetti(Vector3 position)
-    {
-        // Confetti completely disabled for lightweight chiptune feel and optimal performance
     }
 
     public void TriggerCoinPop(Vector3 position)

@@ -6,7 +6,7 @@ using System.Collections.Generic;
 public class GateTrigger : MonoBehaviour
 {
     [Header("Gate Configuration")]
-    public string operationText = "x2";
+    public string operationText = "+10";
     public TextMeshPro textMesh;
 
     [Header("Dynamic Movement")]
@@ -24,7 +24,6 @@ public class GateTrigger : MonoBehaviour
 
     private bool isAdditionTriggered = false;
     private bool isGateCoinsApplied = false;
-    private bool isMultiplyStickmenApplied = false;
     private HashSet<int> processedStickmen = new HashSet<int>();
     private Coroutine textPulseCoroutine;
 
@@ -59,42 +58,49 @@ public class GateTrigger : MonoBehaviour
 
     private void UpdateGateVisuals()
     {
-        if (textMesh != null)
-        {
-            textMesh.text = operationText;
-            
-            // Text styling: thick, bold white font with a dark outline for high legibility
-            textMesh.fontStyle = FontStyles.Bold;
-            textMesh.color = Color.white;
-            textMesh.outlineWidth = 0.22f; // clean thick outline
-            textMesh.outlineColor = new Color(0.05f, 0.05f, 0.1f); // dark slate/black outline
-        }
-
         // Dynamically color the shield and side pillars
         Transform shield = transform.Find("EnergyShield");
         Transform frameTrans = transform.Find("Frame");
 
         Color gateColor = Color.grey;
         Color frameColor = new Color(0.4f, 0.4f, 0.45f); // Neutral gray
+        // Bright, saturated versions of the same green/red used on the shield/frame below, so the
+        // number itself instantly reads as "grows the army" vs. "shrinks it" instead of a flat white
+        // that gives no hint which way +20/-5/-10 etc. will push the crowd.
+        Color textColor = Color.white;
         float emissionIntensity = 3.5f;
 
-        if (operationText.StartsWith("+") || operationText.ToLower().StartsWith("x"))
+        if (operationText.StartsWith("+"))
         {
             // Positive gate: Glowing, semi-transparent Emerald Green
-            gateColor = new Color(0.0f, 1.0f, 0.45f, 0.35f); 
+            gateColor = new Color(0.0f, 1.0f, 0.45f, 0.35f);
             frameColor = new Color(0.0f, 0.6f, 0.15f); // Deep Metallic Green
+            textColor = new Color(0.2f, 1.0f, 0.4f); // Bright green
         }
         else if (operationText.StartsWith("-"))
         {
             // Negative/Obstacle gate: Glowing, semi-transparent Bright Orange-Red
             gateColor = new Color(1.0f, 0.25f, 0.0f, 0.35f);
             frameColor = new Color(0.7f, 0.05f, 0.05f); // Dark Metallic Red
+            textColor = new Color(1.0f, 0.25f, 0.2f); // Bright red
         }
         else if (operationText == "USED")
         {
             gateColor = new Color(0.2f, 0.2f, 0.2f, 0.1f);
             frameColor = new Color(0.2f, 0.2f, 0.22f);
             emissionIntensity = 0f;
+            textColor = new Color(0.6f, 0.6f, 0.6f); // Dim gray
+        }
+
+        if (textMesh != null)
+        {
+            textMesh.text = operationText;
+
+            // Text styling: thick, bold colored font with a dark outline for high legibility
+            textMesh.fontStyle = FontStyles.Bold;
+            textMesh.color = textColor;
+            textMesh.outlineWidth = 0.22f; // clean thick outline
+            textMesh.outlineColor = new Color(0.05f, 0.05f, 0.1f); // dark slate/black outline
         }
 
         if (shield != null)
@@ -134,7 +140,7 @@ public class GateTrigger : MonoBehaviour
         if (GameManager.Instance == null || GameManager.Instance.CurrentState != GameManager.GameState.Playing)
             return;
 
-        StickmanController stickman = other.GetComponent<StickmanController>();
+        StickmanController stickman = TriggerUtils.GetStickman(other);
         if (stickman != null)
         {
             int instanceId = stickman.gameObject.GetHashCode();
@@ -150,7 +156,7 @@ public class GateTrigger : MonoBehaviour
 
         // The leader must also be able to trigger gates directly - otherwise a crowd of 0 starting
         // followers could never grow, since only an existing follower could pass through a gate.
-        PlayerController player = other.GetComponent<PlayerController>();
+        PlayerController player = TriggerUtils.GetLeader(other);
         if (player != null)
         {
             int instanceId = player.gameObject.GetHashCode();
@@ -186,36 +192,7 @@ public class GateTrigger : MonoBehaviour
         string numStr = operationText.Substring(1);
         if (int.TryParse(numStr, out int val))
         {
-            if (op == 'x' || op == 'X')
-            {
-                // Multiplier Gate Coin Reward: grants a flat bonus scaled by the gate's multiplier value.
-                // Previously this multiplied the player's entire persistent coin balance, which compounded
-                // exponentially across the many "x" gates scattered through a level (each gate multiplying
-                // an already-inflated total from the previous one), making the coin counter look like it
-                // climbed forever. A flat bonus keeps the reward bounded no matter how many gates are crossed.
-                if (!isGateCoinsApplied)
-                {
-                    isGateCoinsApplied = true;
-                    if (GameManager.Instance != null)
-                    {
-                        int bonus = (val - 1) * 20;
-                        if (bonus > 0)
-                        {
-                            GameManager.Instance.AddCoins(bonus);
-                            FloatingText.Spawn(contactPosition, $"+{bonus}", Color.yellow);
-                        }
-                    }
-                }
-
-                // Guarded so this only ever fires once per gate - otherwise each newly-spawned stickman
-                // immediately overlaps this same trigger and re-fires it, causing an exponential spawn cascade.
-                if (val > 1 && CrowdManager.Instance != null && !isMultiplyStickmenApplied)
-                {
-                    isMultiplyStickmenApplied = true;
-                    CrowdManager.Instance.MultiplyStickmen(contactPosition, val - 1);
-                }
-            }
-            else if (op == '+')
+            if (op == '+')
             {
                 if (!isAdditionTriggered && CrowdManager.Instance != null)
                 {
@@ -258,21 +235,11 @@ public class GateTrigger : MonoBehaviour
     {
         if (textMesh == null) yield break;
 
-        float duration = 0.15f;
-        float elapsed = 0f;
-        Vector3 baseScale = Vector3.one;
+        // Quick pulse up to 1.4x and back to 1.0x over 0.15 seconds
+        yield return ScaleTween.Run(textMesh.transform, Vector3.one,
+            t => t < 0.5f ? Mathf.Lerp(1.0f, 1.4f, t / 0.5f) : Mathf.Lerp(1.4f, 1.0f, (t - 0.5f) / 0.5f),
+            0.15f, false);
 
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = elapsed / duration;
-            // Quick pulse up to 1.4x and return back to 1.0x over 0.15 seconds using Lerp
-            float targetScaleFactor = t < 0.5f ? Mathf.Lerp(1.0f, 1.4f, t / 0.5f) : Mathf.Lerp(1.4f, 1.0f, (t - 0.5f) / 0.5f);
-            textMesh.transform.localScale = baseScale * targetScaleFactor;
-            yield return null;
-        }
-
-        textMesh.transform.localScale = baseScale;
         textPulseCoroutine = null;
     }
 
@@ -280,18 +247,13 @@ public class GateTrigger : MonoBehaviour
     {
         if (operationText.StartsWith("-"))
         {
-            StickmanController stickman = other.GetComponent<StickmanController>();
+            StickmanController stickman = TriggerUtils.GetStickman(other);
             if (stickman != null)
             {
                 string numStr = operationText.Substring(1);
                 if (int.TryParse(numStr, out int val) && val > 0)
                 {
-                    // Disable the collider immediately (synchronous) rather than relying only on
-                    // Destroy(), which doesn't take effect until end of frame - on a slow frame,
-                    // multiple FixedUpdate physics ticks can re-fire OnTriggerStay for this same
-                    // stickman before it's actually removed, burning two counts off the gate for
-                    // one physical pass-through.
-                    other.enabled = false;
+                    TriggerUtils.DisableAllColliders(stickman);
                     val--;
                     operationText = val > 0 ? $"-{val}" : "USED";
                     UpdateGateVisuals();

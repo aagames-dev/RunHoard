@@ -122,7 +122,7 @@ public class TrackGenerator : MonoBehaviour
 
         // Calculate rotation using smooth continuous angle change (max 2 degrees step default)
         float targetAngle = 0f;
-        int currentLevel = PlayerPrefs.GetInt("CurrentLevel", 1);
+        int currentLevel = LevelManager.CurrentLevel;
         float amplitude = 0.15f;
         float frequency = 0.015f;
         float maxStep = 2f;
@@ -293,23 +293,19 @@ public class TrackGenerator : MonoBehaviour
             string matName = r.sharedMaterial.name;
             if (matName.Contains("NeonCyanMat") || r.gameObject.name.Contains("LeftNeonLine") || (r.transform.parent != null && r.transform.parent.name.Contains("LeftPillar")))
             {
-                Material mat = r.material; // Instantiates at runtime
-                mat.color = leftColor;
-                mat.SetColor("_EmissionColor", leftColor * 3.5f);
+                RendererColorUtils.SetEmissiveColor(r, leftColor, 3.5f);
             }
             else if (matName.Contains("NeonPurpleMat") || r.gameObject.name.Contains("RightNeonLine") || (r.transform.parent != null && r.transform.parent.name.Contains("RightPillar")))
             {
-                Material mat = r.material; // Instantiates at runtime
-                mat.color = rightColor;
-                mat.SetColor("_EmissionColor", rightColor * 3.5f);
+                RendererColorUtils.SetEmissiveColor(r, rightColor, 3.5f);
             }
         }
     }
 
     private void SpawnObjectsOnSegment(float startZ, Transform segmentParent)
     {
-        int currentLevel = PlayerPrefs.GetInt("CurrentLevel", 1);
-        
+        int currentLevel = LevelManager.CurrentLevel;
+
         // --- STANDARD SINGLE-TRACK GENERATION ---
         // 1. Spawning Gates (Always spawn gates on each segment)
         float gateZ = startZ + segmentLength * 0.5f;
@@ -371,29 +367,32 @@ public class TrackGenerator : MonoBehaviour
         }
     }
 
-    private void SpawnStandardSplitGates(float zPosition, int level, Transform parent)
+    // Shared shape behind the split/sliding/alternating gate layouts: spawn one gate per lane position,
+    // let the caller apply any per-gate customization (movement, alternation, etc.), then drop a coin
+    // cluster behind any positive-reward gate.
+    private void SpawnGatePair(float zPosition, float[] xPositions, string[] operations, Transform parent, System.Action<GameObject, int> customize = null)
     {
-        float[] xPositions = GetRandomLanes(level);
-        string[] operations = GetRandomOperations(level);
-
         for (int i = 0; i < xPositions.Length; i++)
         {
             GameObject gateGo = SpawnSingleGate(zPosition, xPositions[i], operations[i], parent);
-            if (operations[i].Contains("+") || operations[i].Contains("x") || operations[i].Contains("X"))
+            customize?.Invoke(gateGo, i);
+            if (operations[i].Contains("+"))
             {
                 SpawnCoinCluster(zPosition + 2.5f, xPositions[i], parent);
             }
         }
     }
 
+    private void SpawnStandardSplitGates(float zPosition, int level, Transform parent)
+    {
+        SpawnGatePair(zPosition, GetRandomLanes(level), GetRandomOperations(level), parent);
+    }
+
     private void SpawnSlidingGates(float zPosition, int level, Transform parent)
     {
         float[] xPositions = { -2f, 2f };
-        string[] operations = GetRandomOperations(level);
-
-        for (int i = 0; i < xPositions.Length; i++)
+        SpawnGatePair(zPosition, xPositions, GetRandomOperations(level), parent, (gateGo, i) =>
         {
-            GameObject gateGo = SpawnSingleGate(zPosition, xPositions[i], operations[i], parent);
             GateTrigger gt = gateGo.GetComponent<GateTrigger>();
             if (gt != null)
             {
@@ -401,21 +400,14 @@ public class TrackGenerator : MonoBehaviour
                 gt.moveSpeed = Random.Range(1.5f, 3.0f);
                 gt.moveRange = Random.Range(1.0f, 1.8f);
             }
-            if (operations[i].Contains("+") || operations[i].Contains("x") || operations[i].Contains("X"))
-            {
-                SpawnCoinCluster(zPosition + 2.5f, xPositions[i], parent);
-            }
-        }
+        });
     }
 
     private void SpawnAlternatingGates(float zPosition, int level, Transform parent)
     {
-        float[] xPositions = GetRandomLanes(level);
         string[] ops = GetRandomOperations(level);
-
-        for (int i = 0; i < xPositions.Length; i++)
+        SpawnGatePair(zPosition, GetRandomLanes(level), ops, parent, (gateGo, i) =>
         {
-            GameObject gateGo = SpawnSingleGate(zPosition, xPositions[i], ops[i], parent);
             GateTrigger gt = gateGo.GetComponent<GateTrigger>();
             if (gt != null && i == 0) // Make at least one gate dynamic/alternating
             {
@@ -425,17 +417,13 @@ public class TrackGenerator : MonoBehaviour
                 gt.alternateInterval = Random.Range(1.2f, 2.0f);
                 gt.operationText = gt.firstOp;
             }
-            if (ops[i].Contains("+") || ops[i].Contains("x") || ops[i].Contains("X"))
-            {
-                SpawnCoinCluster(zPosition + 2.5f, xPositions[i], parent);
-            }
-        }
+        });
     }
 
     private void SpawnSingleCenterGate(float zPosition, int level, Transform parent)
     {
         // High-reward gate in the center
-        string reward = level == 1 ? "+15" : (Random.value < 0.5f ? "x3" : "+20");
+        string reward = level == 1 ? "+15" : (Random.value < 0.5f ? "+30" : "+20");
         GameObject gateGo = SpawnSingleGate(zPosition, 0f, reward, parent);
         SpawnCoinCluster(zPosition + 2.5f, 0f, parent);
 
@@ -458,9 +446,9 @@ public class TrackGenerator : MonoBehaviour
         GameObject gateLeft = SpawnSingleGate(zPosition - 4f, -2f, operations[0], parent);
         GameObject gateRight = SpawnSingleGate(zPosition + 4f, 2f, operations[1], parent);
 
-        if (operations[0].Contains("+") || operations[0].Contains("x") || operations[0].Contains("X"))
+        if (operations[0].Contains("+"))
             SpawnCoinCluster(zPosition - 1.5f, -2f, parent);
-        if (operations[1].Contains("+") || operations[1].Contains("x") || operations[1].Contains("X"))
+        if (operations[1].Contains("+"))
             SpawnCoinCluster(zPosition + 6.5f, 2f, parent);
     }
 
@@ -496,7 +484,7 @@ public class TrackGenerator : MonoBehaviour
 
         if (level == 1)
         {
-            string[] rewards = { "+10", "x2", "+15", "x3", "x5" };
+            string[] rewards = { "+10", "+15", "+20" };
             leftOp = rewards[Random.Range(0, rewards.Length)];
             rightOp = rewards[Random.Range(0, rewards.Length)];
             while (leftOp == rightOp)
@@ -506,7 +494,7 @@ public class TrackGenerator : MonoBehaviour
         }
         else if (level >= 2 && level <= 5)
         {
-            string[] positiveRewards = { "+10", "x2", "x3", "x5", "+15" };
+            string[] positiveRewards = { "+10", "+15", "+20" };
             string[] negativePenalties = { "-5", "-10", "USED" };
 
             if (Random.value < 0.5f)
@@ -525,7 +513,7 @@ public class TrackGenerator : MonoBehaviour
             // Guarantee one positive gate and one penalty gate per pair, same as the level 2-5 tier -
             // picking both sides independently from one mixed pool could give two penalty gates in a
             // row with no safe option at all, right at the point the game is already hardest.
-            string[] positiveRewards = { "x5", "x2", "+20", "x3" };
+            string[] positiveRewards = { "+20", "+30", "+40" };
             string[] negativePenalties = { "-15", "-10", "-20", "-5" };
 
             if (Random.value < 0.5f)

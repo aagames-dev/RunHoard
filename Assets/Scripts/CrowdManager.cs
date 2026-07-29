@@ -60,8 +60,13 @@ public class CrowdManager : MonoBehaviour
         {
             if (activeStickmen.Count == 0 && PlayerController.Instance != null && PlayerController.Instance.IsAtEndBase)
             {
-                // Reaching the castle gate should successfully clear the level, never trigger a game failure
-                GameManager.Instance.VictoryState();
+                // Crowd ran out before the castle's HP hit zero. Rather than an instant loss, let the
+                // lone leader keep chipping away at the castle themselves, just much slower - see
+                // EnemyCastle.EnsureSoloLeaderAttack.
+                if (EnemyCastle.Instance != null)
+                {
+                    EnemyCastle.Instance.EnsureSoloLeaderAttack();
+                }
             }
         }
     }
@@ -89,5 +94,12 @@ public class CrowdManager : MonoBehaviour
     public List<StickmanController> GetActiveStickmen()
     {
         return activeStickmen;
+    }
+
+    // Returns a follower to sacrifice in place of the leader (e.g. hitting a hazard or an enemy at the
+    // door), or null if the crowd is empty and the leader must take the hit themselves.
+    public StickmanController PeekFrontStickman()
+    {
+        return activeStickmen.Count > 0 ? activeStickmen[0] : null;
     }
 }

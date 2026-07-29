@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 using TMPro;
 
 public class GameManager : MonoBehaviour
@@ -17,9 +18,18 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public enum GameState { Start, Playing, Victory, GameOver }
+    public enum GameState { Start, Playing, Victory, GameOver, Paused }
     public GameState CurrentState { get; private set; } = GameState.Start;
     public static int currentLevelIndex = 1;
+
+    private GameObject pausePanel;
+
+    // Tap-to-pause/resume input tracking (no dedicated button - a quick, low-movement tap toggles it).
+    private const float TapMaxDuration = 0.35f;
+    private const float TapMaxDragDistance = 30f;
+    private Vector2 tapStartPos;
+    private float tapStartTime;
+    private bool isTapTracking = false;
 
     // Survives scene reloads (retry/next level) but resets to false on every fresh app process launch,
     // so it reliably distinguishes "just opened the app" from "reloaded the scene mid-session".
@@ -58,6 +68,11 @@ public class GameManager : MonoBehaviour
         {
             Destroy(gameObject);
         }
+    }
+
+    private void Update()
+    {
+        HandleTapToPauseInput();
     }
 
     private void Start()
@@ -100,7 +115,7 @@ public class GameManager : MonoBehaviour
             PlayerPrefs.Save();
         }
 
-        currentLevelIndex = PlayerPrefs.GetInt("CurrentLevel", 1);
+        currentLevelIndex = LevelManager.CurrentLevel;
         TotalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
         displayedCoins = TotalCoins;
         UpdateCoinUI();
@@ -113,6 +128,7 @@ public class GameManager : MonoBehaviour
         StyleLevelText();
         StyleVictoryPanel();
         StyleCrowdText();
+        BuildPauseUI();
     }
 
     public void AddCoins(int amount)
@@ -193,21 +209,8 @@ public class GameManager : MonoBehaviour
 
     private System.Collections.IEnumerator PunchScale(RectTransform target)
     {
-        Vector3 originalScale = Vector3.one;
-        float duration = 0.25f;
-        float elapsed = 0f;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            float t = elapsed / duration;
-            // Smooth sine bounce profile
-            float scaleFactor = 1f + Mathf.Sin(t * Mathf.PI) * 0.35f;
-            target.localScale = originalScale * scaleFactor;
-            yield return null;
-        }
-
-        target.localScale = originalScale;
+        // Smooth sine bounce profile
+        yield return ScaleTween.Run(target, Vector3.one, t => 1f + Mathf.Sin(t * Mathf.PI) * 0.35f, 0.25f, true);
     }
 
     private void StyleCoinText()
@@ -375,8 +378,86 @@ public class GameManager : MonoBehaviour
     {
         if (levelText)
         {
-            int currentLevel = PlayerPrefs.GetInt("CurrentLevel", 1);
-            levelText.text = $"LEVEL {currentLevel}";
+            levelText.text = $"LEVEL {LevelManager.CurrentLevel}";
+        }
+    }
+
+    private void BuildPauseUI()
+    {
+        if (gameplayUI == null) return;
+        Transform canvasParent = gameplayUI.transform.parent;
+        if (canvasParent == null) return;
+
+        TMP_FontAsset oswald = Resources.Load<TMP_FontAsset>("Fonts & Materials/Oswald Bold SDF");
+
+        // Purely informational overlay - no button. Pausing/resuming both happen from a plain tap
+        // anywhere on screen, handled centrally in HandleTapToPauseInput().
+        GameObject panelGo = new GameObject("PausePanel", typeof(RectTransform));
+        panelGo.transform.SetParent(canvasParent, false);
+        RectTransform panelRT = panelGo.GetComponent<RectTransform>();
+        panelRT.anchorMin = Vector2.zero;
+        panelRT.anchorMax = Vector2.one;
+        panelRT.offsetMin = Vector2.zero;
+        panelRT.offsetMax = Vector2.zero;
+
+        UnityEngine.UI.Image backdrop = panelGo.AddComponent<UnityEngine.UI.Image>();
+        backdrop.color = new Color(0.02f, 0.02f, 0.06f, 0.78f);
+        backdrop.raycastTarget = false; // Never intercept the tap - GameManager reads raw Pointer input directly
+
+        RectTransform titleRT = CreateCenteredUIRect(panelGo.transform, "PausedTitle", new Vector2(500f, 80f), new Vector2(0f, 40f));
+        TextMeshProUGUI titleText = titleRT.gameObject.AddComponent<TextMeshProUGUI>();
+        titleText.text = "PAUSED";
+        titleText.alignment = TextAlignmentOptions.Center;
+        titleText.fontSize = 56f;
+        titleText.fontStyle = FontStyles.Bold;
+        titleText.color = Color.white;
+        titleText.raycastTarget = false;
+        if (oswald != null) titleText.font = oswald;
+
+        RectTransform subtitleRT = CreateCenteredUIRect(panelGo.transform, "PausedSubtitle", new Vector2(500f, 60f), new Vector2(0f, -30f));
+        TextMeshProUGUI subtitleText = subtitleRT.gameObject.AddComponent<TextMeshProUGUI>();
+        subtitleText.text = "Tap anywhere to resume";
+        subtitleText.alignment = TextAlignmentOptions.Center;
+        subtitleText.fontSize = 30f;
+        subtitleText.color = new Color(1f, 1f, 1f, 0.8f);
+        subtitleText.raycastTarget = false;
+        if (oswald != null) subtitleText.font = oswald;
+
+        pausePanel = panelGo;
+        pausePanel.SetActive(false);
+    }
+
+    private void HandleTapToPauseInput()
+    {
+        if (CurrentState != GameState.Playing && CurrentState != GameState.Paused) return;
+        if (Pointer.current == null) return;
+
+        if (Pointer.current.press.wasPressedThisFrame)
+        {
+            tapStartPos = Pointer.current.position.ReadValue();
+            tapStartTime = Time.unscaledTime;
+            isTapTracking = true;
+        }
+        else if (Pointer.current.press.wasReleasedThisFrame && isTapTracking)
+        {
+            isTapTracking = false;
+
+            // Only counts as a tap-to-pause if it was quick and didn't drag far - a real lane-change
+            // drag or jump/duck swipe moves well past this distance, so there's no ambiguity between
+            // the two gestures.
+            float heldDuration = Time.unscaledTime - tapStartTime;
+            float dragDistance = Vector2.Distance(Pointer.current.position.ReadValue(), tapStartPos);
+            if (heldDuration <= TapMaxDuration && dragDistance <= TapMaxDragDistance)
+            {
+                if (CurrentState == GameState.Playing)
+                {
+                    PauseGame();
+                }
+                else if (CurrentState == GameState.Paused)
+                {
+                    ResumeGame();
+                }
+            }
         }
     }
 
@@ -401,8 +482,7 @@ public class GameManager : MonoBehaviour
 
     public void AdvanceLevel()
     {
-        int currentLevel = PlayerPrefs.GetInt("CurrentLevel", 1);
-        int nextLevel = currentLevel + 1;
+        int nextLevel = LevelManager.CurrentLevel + 1;
         PlayerPrefs.SetInt("CurrentLevel", nextLevel);
         PlayerPrefs.Save();
         currentLevelIndex = nextLevel; // Sync global variable
@@ -419,6 +499,27 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 1f;
     }
 
+    public void PauseGame()
+    {
+        // Only pausable mid-run - every gameplay script already freezes whenever CurrentState isn't
+        // Playing, so reusing that same mechanism (rather than a separate pause flag) needs no extra
+        // guards anywhere else in the codebase.
+        if (CurrentState != GameState.Playing) return;
+        CurrentState = GameState.Paused;
+        Time.timeScale = 0f;
+        if (pausePanel) pausePanel.SetActive(true);
+        if (AudioManager.Instance != null) AudioManager.Instance.PauseMusic();
+    }
+
+    public void ResumeGame()
+    {
+        if (CurrentState != GameState.Paused) return;
+        CurrentState = GameState.Playing;
+        Time.timeScale = 1f;
+        if (pausePanel) pausePanel.SetActive(false);
+        if (AudioManager.Instance != null) AudioManager.Instance.ResumeMusic();
+    }
+
     public void VictoryState()
     {
         if (CurrentState == GameState.Victory) return; // Guard against duplicate calls
@@ -428,6 +529,28 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 1f;
 
         if (gameplayUI) gameplayUI.SetActive(false);
+
+        // Give the castle's wall-break a beat to actually play out before the victory panel
+        // covers the screen, instead of popping up instantly over it.
+        StartCoroutine(ShowVictoryPanelDelayed());
+
+        if (victoryScoreText && CrowdManager.Instance != null)
+        {
+            // Includes leader (+ 1)
+            victoryScoreText.text = $"You won with {CrowdManager.Instance.ActiveCrowdCount + 1} Stickmen!";
+        }
+        if (BossHealthBar.Instance != null)
+        {
+            BossHealthBar.Instance.HideBar();
+        }
+
+        // Advancing now waits for the player to press "NEXT LEVEL" on the victory window (wired in WireUpButtons).
+    }
+
+    private System.Collections.IEnumerator ShowVictoryPanelDelayed()
+    {
+        yield return new WaitForSeconds(0.5f);
+
         if (victoryPanel)
         {
             victoryPanel.SetActive(true);
@@ -443,53 +566,19 @@ public class GameManager : MonoBehaviour
                 StartCoroutine(AnimateVictoryTextBounce(titleTrans));
             }
         }
-        if (victoryScoreText && CrowdManager.Instance != null)
-        {
-            // Includes leader (+ 1)
-            victoryScoreText.text = $"You won with {CrowdManager.Instance.ActiveCrowdCount + 1} Stickmen!";
-        }
-        if (BossHealthBar.Instance != null)
-        {
-            BossHealthBar.Instance.HideBar();
-        }
-
-        // Advancing now waits for the player to press "NEXT LEVEL" on the victory window (wired in WireUpButtons).
     }
 
     private System.Collections.IEnumerator AnimateVictoryTextBounce(Transform textTransform)
     {
         textTransform.localScale = Vector3.zero;
-        float duration = 0.5f;
-        float elapsed = 0f;
 
-        while (elapsed < duration)
+        // Simple robust elastic-bounce out formula for unscaled scale bounce
+        yield return ScaleTween.Run(textTransform, Vector3.one, t =>
         {
-            elapsed += Time.unscaledDeltaTime;
-            float t = elapsed / duration;
-
-            // Simple robust elastic-bounce out formula for unscaled scale bounce
-            float scaleFactor = 0f;
-            if (t < 0.45f)
-            {
-                // Climb quickly up to 1.35x
-                scaleFactor = Mathf.Lerp(0f, 1.35f, t / 0.45f);
-            }
-            else if (t < 0.75f)
-            {
-                // Descend to 1.15x
-                scaleFactor = Mathf.Lerp(1.35f, 1.15f, (t - 0.45f) / 0.3f);
-            }
-            else
-            {
-                // Settle on 1.2x
-                scaleFactor = Mathf.Lerp(1.15f, 1.2f, (t - 0.75f) / 0.25f);
-            }
-
-            textTransform.localScale = Vector3.one * scaleFactor;
-            yield return null;
-        }
-
-        textTransform.localScale = Vector3.one * 1.2f;
+            if (t < 0.45f) return Mathf.Lerp(0f, 1.35f, t / 0.45f); // Climb quickly up to 1.35x
+            if (t < 0.75f) return Mathf.Lerp(1.35f, 1.15f, (t - 0.45f) / 0.3f); // Descend to 1.15x
+            return Mathf.Lerp(1.15f, 1.2f, (t - 0.75f) / 0.25f); // Settle on 1.2x
+        }, 0.5f, true);
     }
 
     public void GameOver()
@@ -522,33 +611,33 @@ public class GameManager : MonoBehaviour
         var stickmen = Object.FindObjectsByType<StickmanController>(FindObjectsSortMode.None);
         foreach (var sm in stickmen)
         {
-            if (sm != null) DestroyImmediate(sm.gameObject);
+            if (sm != null) Destroy(sm.gameObject);
         }
 
         // 2. Destroy all red enemy stickmen and squads
         var enemySquads = Object.FindObjectsByType<EnemySquad>(FindObjectsSortMode.None);
         foreach (var es in enemySquads)
         {
-            if (es != null) DestroyImmediate(es.gameObject);
+            if (es != null) Destroy(es.gameObject);
         }
         var enemyStickmen = Object.FindObjectsByType<EnemyStickman>(FindObjectsSortMode.None);
         foreach (var es in enemyStickmen)
         {
-            if (es != null) DestroyImmediate(es.gameObject);
+            if (es != null) Destroy(es.gameObject);
         }
 
         // 3. Destroy all spinning and collectible coins
         var coins = Object.FindObjectsByType<CoinCollector>(FindObjectsSortMode.None);
         foreach (var coin in coins)
         {
-            if (coin != null) DestroyImmediate(coin.gameObject);
+            if (coin != null) Destroy(coin.gameObject);
         }
 
         // 4. Destroy all hazards/obstacles
         var obstacles = GameObject.FindGameObjectsWithTag("Obstacle");
         foreach (var obs in obstacles)
         {
-            if (obs != null) DestroyImmediate(obs);
+            if (obs != null) Destroy(obs);
         }
 
         // 5. Destroy all dynamic particle systems and effects left in the scene
@@ -558,7 +647,7 @@ public class GameManager : MonoBehaviour
             // Do not destroy the ones attached to persistent managers or camera, only dynamic instances
             if (ps != null && ps.transform.parent == null)
             {
-                DestroyImmediate(ps.gameObject);
+                Destroy(ps.gameObject);
             }
         }
 

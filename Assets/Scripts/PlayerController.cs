@@ -26,6 +26,11 @@ public class PlayerController : MonoBehaviour
     private bool isDucking = false;
     private float duckTimer = 0f;
 
+    [Header("Solo Castle Attack Animation")]
+    public float soloAttackAnimDuration = 0.25f;
+    private bool isSoloAttacking = false;
+    private float soloAttackTimer = 0f;
+
     [Header("Visual Container Reference")]
     public Transform visualContainer;
 
@@ -170,7 +175,7 @@ public class PlayerController : MonoBehaviour
         baseRing.transform.localPosition = Vector3.zero;
         baseRing.transform.localScale = new Vector3(1.1f, 0.08f, 1.1f);
         baseRing.GetComponent<Renderer>().sharedMaterial = goldMat;
-        if (baseRing.GetComponent<Collider>()) Destroy(baseRing.GetComponent<Collider>());
+        RemovePrimitiveCollider(baseRing);
 
         // Spikes on the crown (6 cones pointing up around the ring)
         int spikeCount = 6;
@@ -188,7 +193,7 @@ public class PlayerController : MonoBehaviour
             spike.transform.localRotation = Quaternion.identity;
             spike.transform.localScale = new Vector3(0.12f, 0.22f, 0.12f);
             spike.GetComponent<Renderer>().sharedMaterial = goldMat;
-            if (spike.GetComponent<Collider>()) Destroy(spike.GetComponent<Collider>());
+            RemovePrimitiveCollider(spike);
 
             // Add a small ruby jewel sphere at the tip of each spike
             GameObject gem = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -202,10 +207,25 @@ public class PlayerController : MonoBehaviour
             rubyMat.EnableKeyword("_EMISSION");
             rubyMat.SetColor("_EmissionColor", Color.red * 1.5f);
             gem.GetComponent<Renderer>().sharedMaterial = rubyMat;
-            if (gem.GetComponent<Collider>()) Destroy(gem.GetComponent<Collider>());
+            RemovePrimitiveCollider(gem);
         }
 
         return crownGo.transform;
+    }
+
+    // GameObject.CreatePrimitive() always attaches a real physics Collider. Destroy() doesn't take
+    // effect until end of frame, so without this, these crown pieces (parented under the player's own
+    // Head/root hierarchy) would briefly become part of the player's compound Rigidbody collider shape -
+    // for one frame, but enough to visibly pop the player up off the track. Disabling immediately closes
+    // that window; Destroy() still runs afterward to clean the now-unused component up properly.
+    private void RemovePrimitiveCollider(GameObject primitive)
+    {
+        Collider col = primitive.GetComponent<Collider>();
+        if (col != null)
+        {
+            col.enabled = false;
+            Destroy(col);
+        }
     }
 
     private void SpawnStartingArmy()
@@ -296,6 +316,9 @@ public class PlayerController : MonoBehaviour
         // Ducking timer countdown & scale interpolation
         HandleDuckingTimer();
 
+        // Solo castle-attack punch animation timer countdown
+        HandleSoloAttackTimer();
+
         // Read swipe and vertical keyboard triggers
         HandleVerticalInput();
 
@@ -312,7 +335,10 @@ public class PlayerController : MonoBehaviour
         // Use a short down-facing Raycast from slightly above player's feet (hips level) to detect track collider floor
         if (Physics.Raycast(transform.position + Vector3.up * 0.5f, Vector3.down, out hit, 1.5f))
         {
-            if (!hit.collider.isTrigger && hit.collider.transform.root != transform.root)
+            // Crowd stickmen use solid (non-trigger) colliders, so when one ends up directly under the
+            // leader (bunching/cohesion), this raycast would otherwise mistake the stickman's collider for
+            // the track floor and snap groundY up to its height, making the player visibly float.
+            if (!hit.collider.isTrigger && hit.collider.transform.root != transform.root && hit.collider.GetComponentInParent<StickmanController>() == null)
             {
                 currentSurfaceY = hit.point.y;
                 hitFloor = true;
@@ -474,6 +500,26 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    // Called by EnemyCastle each solo-attack tick so a lone leader waiting out a castle's HP visibly
+    // does something each hit, instead of standing frozen while an easy-to-miss number ticks down.
+    public void TriggerSoloAttackPunch()
+    {
+        isSoloAttacking = true;
+        soloAttackTimer = soloAttackAnimDuration;
+    }
+
+    private void HandleSoloAttackTimer()
+    {
+        if (isSoloAttacking)
+        {
+            soloAttackTimer -= Time.deltaTime;
+            if (soloAttackTimer <= 0f)
+            {
+                isSoloAttacking = false;
+            }
+        }
+    }
+
     private void EndDuck()
     {
         isDucking = false;
@@ -489,6 +535,21 @@ public class PlayerController : MonoBehaviour
     private void HandleProceduralAnimations()
     {
         if (visualContainer == null) return;
+
+        // Quick forward punch/lunge each time the lone leader lands a solo hit on the castle -
+        // takes priority so it's clearly visible even while frozen at the door (IsAtEndBase).
+        if (isSoloAttacking)
+        {
+            float t = 1f - Mathf.Clamp01(soloAttackTimer / soloAttackAnimDuration);
+            float lunge = Mathf.Sin(t * Mathf.PI) * 0.35f;
+            visualContainer.localPosition = new Vector3(0f, 0f, lunge);
+            visualContainer.localScale = new Vector3(
+                originalVisualScale.x * (1.0f + lunge * 0.15f),
+                originalVisualScale.y * (1.0f - lunge * 0.1f),
+                originalVisualScale.z * (1.0f + lunge * 0.15f)
+            );
+            return;
+        }
 
         // Bouncy vertical jumping victory pose/dance at level clear
         if (GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Victory)
@@ -585,15 +646,7 @@ public class PlayerController : MonoBehaviour
                 // Previously these were unconditional instant-death for the leader regardless of
                 // crowd size, which made the entire crowd-building loop (shop upgrades, + gates)
                 // meaningless against the most common obstacle type on the track.
-                StickmanController sacrificed = null;
-                if (CrowdManager.Instance != null && CrowdManager.Instance.ActiveCrowdCount > 0)
-                {
-                    var activeList = CrowdManager.Instance.GetActiveStickmen();
-                    if (activeList != null && activeList.Count > 0)
-                    {
-                        sacrificed = activeList[0];
-                    }
-                }
+                StickmanController sacrificed = CrowdManager.Instance != null ? CrowdManager.Instance.PeekFrontStickman() : null;
 
                 if (sacrificed != null)
                 {
@@ -611,25 +664,6 @@ public class PlayerController : MonoBehaviour
                 {
                     GameManager.Instance.GameOver();
                 }
-            }
-        }
-        else if (other.name.Contains("FinishLineTrigger"))
-        {
-            // 1. Instantly stop all forward and sideways movement and freeze physics
-            forwardSpeed = 0f;
-            horizontalSpeed = 0f;
-            IsAtEndBase = true;
-            if (rb != null)
-            {
-                rb.isKinematic = true; // Instantly lock kinematic state to prevent any push, drift, or slide
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-            }
-
-            // 2. Show the lightweight static UI overlay and trigger next level loading after 2s via GameManager
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.VictoryState();
             }
         }
     }

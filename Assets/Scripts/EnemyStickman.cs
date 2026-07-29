@@ -8,7 +8,7 @@ public class EnemyStickman : MonoBehaviour
     {
         if (resolved) return;
 
-        StickmanController friendly = other.GetComponent<StickmanController>();
+        StickmanController friendly = TriggerUtils.GetStickman(other);
         if (friendly != null)
         {
             resolved = true;
@@ -17,7 +17,7 @@ public class EnemyStickman : MonoBehaviour
         }
 
         // Also check if collision is with the Hat-Man leader directly to hurt the crowd/leader
-        PlayerController leader = other.GetComponent<PlayerController>();
+        PlayerController leader = TriggerUtils.GetLeader(other);
         if (leader != null)
         {
             resolved = true;
@@ -55,19 +55,12 @@ public class EnemyStickman : MonoBehaviour
 
     private void ResolveLeaderCollision()
     {
-        // If they crash into the main player directly and player has active crowd, sacrifice a follower
-        if (CrowdManager.Instance != null && CrowdManager.Instance.ActiveCrowdCount > 0)
+        // If they crash into the main player directly and player has an active crowd, sacrifice a follower
+        StickmanController targetStickman = CrowdManager.Instance != null ? CrowdManager.Instance.PeekFrontStickman() : null;
+        if (targetStickman != null)
         {
-            var activeList = CrowdManager.Instance.GetActiveStickmen();
-            if (activeList != null && activeList.Count > 0)
-            {
-                StickmanController targetStickman = activeList[0];
-                if (targetStickman != null)
-                {
-                    ResolveCombat(targetStickman);
-                    return;
-                }
-            }
+            ResolveCombat(targetStickman);
+            return;
         }
 
         // Otherwise, if no crowd followers exist, trigger game over immediately!

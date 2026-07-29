@@ -37,6 +37,22 @@ public class AudioManager : MonoBehaviour
         musicSource.Play();
     }
 
+    public void PauseMusic()
+    {
+        if (musicSource != null && musicSource.isPlaying)
+        {
+            musicSource.Pause();
+        }
+    }
+
+    public void ResumeMusic()
+    {
+        if (musicSource != null)
+        {
+            musicSource.UnPause();
+        }
+    }
+
     private AudioClip CreateProceduralBackgroundMusic()
     {
         int sampleRate = 22050;
@@ -147,23 +163,9 @@ public class AudioManager : MonoBehaviour
 
     private AudioClip CreatePopClip()
     {
-        int sampleRate = 22050;
-        float duration = 0.15f;
-        int sampleCount = Mathf.RoundToInt(sampleRate * duration);
-        float[] samples = new float[sampleCount];
-
-        for (int i = 0; i < sampleCount; i++)
-        {
-            float t = (float)i / sampleRate;
-            // Sweep frequency up rapidly from 800Hz to 1600Hz
-            float freq = Mathf.Lerp(800f, 1600f, t / duration);
-            float env = Mathf.Sin((t / duration) * Mathf.PI) * (1f - (t / duration));
-            samples[i] = Mathf.Sin(2f * Mathf.PI * freq * t) * env * 0.8f;
-        }
-
-        AudioClip clip = AudioClip.Create("PopSFX", sampleCount, 1, sampleRate, false);
-        clip.SetData(samples, 0);
-        return clip;
+        // Sweep frequency up rapidly from 800Hz to 1600Hz
+        return ToneSynth.CreateSweepClip("PopSFX", 22050, 0.15f, 800f, 1600f,
+            progress => Mathf.Sin(progress * Mathf.PI) * (1f - progress), 0.8f);
     }
 
     private AudioClip CreateExplosionClip()

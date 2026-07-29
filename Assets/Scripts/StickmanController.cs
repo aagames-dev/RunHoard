@@ -2,6 +2,9 @@ using UnityEngine;
 
 public class StickmanController : MonoBehaviour
 {
+    // Layer 6 is unused elsewhere in this project's Tags and Layers settings.
+    private const int CrowdLayer = 6;
+
     private Rigidbody rb;
     private Transform visualChild;
     private Transform engineLeft;
@@ -27,6 +30,20 @@ public class StickmanController : MonoBehaviour
         rb.useGravity = false; // Hover drones don't need gravity dragging them down rigidly
         rb.isKinematic = false;
         rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezeRotationZ;
+
+        // Dozens of stickmen converging on the single castle doorway used to physically jam against
+        // each other (solid rigidbody colliders piling up), stalling castle damage and leaving the
+        // frozen leader stuck forever. Making them full triggers fixed that but had a worse side effect:
+        // with no physical solidity at all, a tight cluster can now fully overlap a single hazard
+        // (spiked roller/pendulum/glove) at once instead of being kept spread out, wiping out the whole
+        // crowd in one hit well before reaching the castle. Putting them on their own physics layer and
+        // only ignoring stickman-vs-stickman collisions fixes the doorway jam without touching their
+        // (already correct, trigger-based) interactions with obstacles/castle/gates.
+        foreach (Transform t in GetComponentsInChildren<Transform>(true))
+        {
+            t.gameObject.layer = CrowdLayer;
+        }
+        Physics.IgnoreLayerCollision(CrowdLayer, CrowdLayer, true);
 
         // Cache visual components for animations
         visualChild = transform.Find("Body");

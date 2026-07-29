@@ -9,7 +9,7 @@ public class CoinCollector : MonoBehaviour
         if (collected) return;
 
         // Check if collision is with friendly active stickman or Player Cannon
-        if (other.GetComponent<StickmanController>() != null || other.GetComponent<PlayerController>() != null)
+        if (TriggerUtils.GetStickman(other) != null || TriggerUtils.GetLeader(other) != null)
         {
             collected = true;
             CollectCoin();
@@ -50,28 +50,11 @@ public class CoinCollector : MonoBehaviour
     private System.Collections.IEnumerator TactilePopAndDestroy()
     {
         Vector3 baseScale = transform.localScale;
-        float duration = 0.12f;
-        float elapsed = 0f;
 
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = elapsed / duration;
-            
-            // Pop up to 1.45f quickly, then rapidly deflate to 0f
-            float currentScaleFactor;
-            if (t < 0.35f)
-            {
-                currentScaleFactor = Mathf.Lerp(1.0f, 1.45f, t / 0.35f);
-            }
-            else
-            {
-                currentScaleFactor = Mathf.Lerp(1.45f, 0.0f, (t - 0.35f) / 0.65f);
-            }
-
-            transform.localScale = baseScale * currentScaleFactor;
-            yield return null;
-        }
+        // Pop up to 1.45f quickly, then rapidly deflate to 0f
+        yield return ScaleTween.Run(transform, baseScale,
+            t => t < 0.35f ? Mathf.Lerp(1.0f, 1.45f, t / 0.35f) : Mathf.Lerp(1.45f, 0.0f, (t - 0.35f) / 0.65f),
+            0.12f, false);
 
         Destroy(gameObject);
     }
@@ -90,21 +73,7 @@ public class CoinCollector : MonoBehaviour
 
     private AudioClip CreateSatisfyingPitchClip()
     {
-        int sampleRate = 44100;
-        float duration = 0.12f;
-        int sampleCount = Mathf.RoundToInt(sampleRate * duration);
-        float[] samples = new float[sampleCount];
-
-        for (int i = 0; i < sampleCount; i++)
-        {
-            float t = (float)i / sampleRate;
-            // Sweep frequency up rapidly from 950Hz to 1450Hz for maximum dopamine
-            float freq = Mathf.Lerp(950f, 1450f, t / duration);
-            samples[i] = Mathf.Sin(2f * Mathf.PI * freq * t) * (1f - (t / duration));
-        }
-
-        AudioClip clip = AudioClip.Create("CoinBeep", sampleCount, 1, sampleRate, false);
-        clip.SetData(samples, 0);
-        return clip;
+        // Sweep frequency up rapidly from 950Hz to 1450Hz for maximum dopamine
+        return ToneSynth.CreateSweepClip("CoinBeep", 44100, 0.12f, 950f, 1450f, progress => 1f - progress);
     }
 }

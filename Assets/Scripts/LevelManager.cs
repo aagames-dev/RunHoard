@@ -4,6 +4,8 @@ public class LevelManager : MonoBehaviour
 {
     public static LevelManager Instance { get; private set; }
 
+    public static int CurrentLevel => PlayerPrefs.GetInt("CurrentLevel", 1);
+
     [Header("Current Runtime Settings")]
     public string currentLevelName;
     public float levelLength = 300f;
@@ -32,8 +34,8 @@ public class LevelManager : MonoBehaviour
 
     public void LoadLevelConfig()
     {
-        int currentLevel = PlayerPrefs.GetInt("CurrentLevel", 1);
-        
+        int currentLevel = CurrentLevel;
+
         // 1. Global Level Progression & Dynamic Timing Math
         if (currentLevel == 1)
         {
@@ -105,15 +107,6 @@ public class LevelManager : MonoBehaviour
             {
                 castle.maxHP = castleMaxHP;
             }
-
-            // Spawn a clean, independent Finish Line Trigger at the end of the track
-            GameObject finishLineTrigger = new GameObject("FinishLineTrigger");
-            finishLineTrigger.transform.position = spawnPos;
-            finishLineTrigger.transform.rotation = spawnRot;
-            
-            BoxCollider triggerCol = finishLineTrigger.AddComponent<BoxCollider>();
-            triggerCol.isTrigger = true;
-            triggerCol.size = new Vector3(12f, 6f, 3f); // Wide and tall enough to capture player contact cleanly
         }
     }
 }

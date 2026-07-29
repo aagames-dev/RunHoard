@@ -121,10 +121,13 @@ public class CloudGenerator : MonoBehaviour
             GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             sphere.transform.SetParent(cloudParent.transform, false);
 
-            // Disable sphere collider to prevent raycast/physics collision interference
-            if (sphere.GetComponent<SphereCollider>())
+            // Disable sphere collider to prevent raycast/physics collision interference. Disabled
+            // immediately (synchronous) since Destroy() alone doesn't take effect until end of frame.
+            SphereCollider sphereCollider = sphere.GetComponent<SphereCollider>();
+            if (sphereCollider != null)
             {
-                DestroyImmediate(sphere.GetComponent<SphereCollider>());
+                sphereCollider.enabled = false;
+                Destroy(sphereCollider);
             }
 
             // Assign cloud material
