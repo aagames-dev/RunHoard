@@ -549,7 +549,16 @@ public class GameManager : MonoBehaviour
 
     private System.Collections.IEnumerator ShowVictoryPanelDelayed()
     {
-        yield return new WaitForSeconds(0.5f);
+        // Wait for the castle's door-slide animation to fully finish before darkening the screen with
+        // the victory backdrop. This used to be a hardcoded 0.5s beat, shorter than EnemyCastle's own
+        // 0.7s door-slide duration - so the backdrop started covering the screen before the door had
+        // finished opening, cutting the animation off early/making it look like it never opened.
+        float delay = 0.5f;
+        if (EnemyCastle.Instance != null)
+        {
+            delay = EnemyCastle.Instance.doorSlideDuration + 0.15f;
+        }
+        yield return new WaitForSeconds(delay);
 
         if (victoryPanel)
         {
