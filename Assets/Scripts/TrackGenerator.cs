@@ -495,7 +495,7 @@ public class TrackGenerator : MonoBehaviour
         else if (level >= 2 && level <= 5)
         {
             string[] positiveRewards = { "+10", "+15", "+20" };
-            string[] negativePenalties = { "-5", "-10", "USED" };
+            string[] negativePenalties = { "-5", "-10" };
 
             if (Random.value < 0.5f)
             {
