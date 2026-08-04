@@ -40,6 +40,7 @@ public class GameManager : MonoBehaviour
     public GameObject victoryPanel;
     public GameObject gameOverPanel;
     public GameObject gameplayUI;
+    public GameObject shopPanel;
 
     [Header("UI Texts")]
     public TextMeshProUGUI crowdCountText;
@@ -350,12 +351,23 @@ public class GameManager : MonoBehaviour
             coinPanelRT.sizeDelta = new Vector2(size.x, size.y + 40f);
         }
 
+        // The coin text was originally anchored to the panel's vertical *center* (anchorMin/Max.y = 0.5),
+        // which was fine while it was the panel's only content. But that center point shifts downward as
+        // the panel grows taller to fit the new row below, dragging the coin number down into the crowd
+        // row and overlapping it. Re-anchor it to the top instead so its position is fixed regardless of
+        // how tall the panel is, and pin the crowd row to the top too, directly below it.
+        RectTransform coinRT = coinCountText.rectTransform;
+        coinRT.anchorMin = new Vector2(coinRT.anchorMin.x, 1f);
+        coinRT.anchorMax = new Vector2(coinRT.anchorMax.x, 1f);
+        coinRT.pivot = new Vector2(coinRT.pivot.x, 1f);
+        coinRT.anchoredPosition = new Vector2(coinRT.anchoredPosition.x, -10f);
+
         RectTransform textRT = crowdCountText.rectTransform;
         textRT.SetParent(coinPanel, false);
-        textRT.anchorMin = new Vector2(0f, 0.5f);
-        textRT.anchorMax = new Vector2(1f, 0.5f);
-        textRT.pivot = new Vector2(0f, 0.5f);
-        textRT.anchoredPosition = new Vector2(95f, -20f); // same left offset as the coin row, one row below it
+        textRT.anchorMin = new Vector2(0f, 1f);
+        textRT.anchorMax = new Vector2(1f, 1f);
+        textRT.pivot = new Vector2(0f, 1f);
+        textRT.anchoredPosition = new Vector2(95f, -74f); // same left offset as the coin row, one row below it
         textRT.sizeDelta = new Vector2(-115f, 36f);
 
         TMP_FontAsset oswald = Resources.Load<TMP_FontAsset>("Fonts & Materials/Oswald Bold SDF");
@@ -682,6 +694,9 @@ public class GameManager : MonoBehaviour
         if (victoryPanel) victoryPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (gameplayUI) gameplayUI.SetActive(false);
+        // The shop panel was left active in the scene by default, permanently covering the start
+        // panel's Play button since nothing ever hid it - there's currently no button that opens it either.
+        if (shopPanel) shopPanel.SetActive(false);
     }
 
     public void UpdateCrowdCount(int count)

@@ -10170,7 +10170,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1564910664
 RectTransform:
   m_ObjectHideFlags: 0
@@ -12180,6 +12180,7 @@ MonoBehaviour:
   victoryPanel: {fileID: 1953805207}
   gameOverPanel: {fileID: 647479757}
   gameplayUI: {fileID: 769847009}
+  shopPanel: {fileID: 1564910663}
   crowdCountText: {fileID: 1270580616}
   victoryScoreText: {fileID: 1855783087}
   levelText: {fileID: 641301880}
@@ -12299,70 +12300,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1953805207}
   m_CullTransparentMesh: 1
---- !u!1001 &1964602097
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -2.782626
-      objectReference: {fileID: 0}
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 284.4914
-      objectReference: {fileID: 0}
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.99852985
-      objectReference: {fileID: 0}
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.054204687
-      objectReference: {fileID: 0}
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1805172299863183144, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1868104150697395497, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_Name
-      value: EnemyCastlePrefab
-      objectReference: {fileID: 0}
-    - target: {fileID: 3378016151342457874, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      propertyPath: m_TextStyleHashCode
-      value: -1183493901
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 1192258512568472964, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 0}
-  m_SourcePrefab: {fileID: 100100000, guid: b8b3c8398da8a4bd690f77f93abd8232, type: 3}
 --- !u!1 &1989950746
 GameObject:
   m_ObjectHideFlags: 0
@@ -13043,4 +12980,3 @@ SceneRoots:
   - {fileID: 208522718}
   - {fileID: 234728648}
   - {fileID: 479874679}
-  - {fileID: 1964602097}
