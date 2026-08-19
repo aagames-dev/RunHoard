@@ -16,6 +16,10 @@
 *.unitypackage
 *.app
 
+# Signing keystores - never commit, these are secrets
+*.keystore
+*.jks
+
 # Project-specific generated/debug artifacts (see CLAUDE.md)
 /My project_BurstDebugInformation_DoNotShip/
 /AAGame_BackUpThisFolder_ButDontShipItWithYourGame/

@@ -41,6 +41,8 @@ public class GameManager : MonoBehaviour
     public GameObject gameOverPanel;
     public GameObject gameplayUI;
     public GameObject shopPanel;
+    public UnityEngine.UI.Button shopButton;
+    public UnityEngine.UI.Button shopCloseButton;
 
     [Header("UI Texts")]
     public TextMeshProUGUI crowdCountText;
@@ -102,17 +104,14 @@ public class GameManager : MonoBehaviour
             PlayerPrefs.Save();
         }
 
-        // Always begin at level 1 with 0 coins and no purchased starting-army upgrade when the app itself
-        // is (re)launched. This flag is a static, so it survives the scene reloads RestartGame()/AdvanceLevel()
-        // perform mid-session (letting normal level progression and coin earnings keep working within one
-        // sitting), but resets to false on every new app process.
+        // Always begin at level 1 when the app itself is (re)launched - coins and purchased upgrades
+        // (starting army, hat) are meta-progression and persist across launches like the hat already did.
+        // This flag is a static, so it survives the scene reloads RestartGame()/AdvanceLevel() perform
+        // mid-session, but resets to false on every new app process.
         if (!hasResetForThisAppLaunch)
         {
             hasResetForThisAppLaunch = true;
             PlayerPrefs.SetInt("CurrentLevel", 1);
-            PlayerPrefs.SetInt("TotalCoins", 0);
-            PlayerPrefs.SetInt("StartingArmyLevel", 0);
-            PlayerPrefs.SetInt("StartingStickmenCount", 0);
             PlayerPrefs.Save();
         }
 
@@ -490,6 +489,8 @@ public class GameManager : MonoBehaviour
             UnityEngine.UI.Button btn = gameOverPanel.GetComponentInChildren<UnityEngine.UI.Button>();
             if (btn) btn.onClick.AddListener(RestartGame);
         }
+        if (shopButton) shopButton.onClick.AddListener(OpenShop);
+        if (shopCloseButton) shopCloseButton.onClick.AddListener(CloseShop);
     }
 
     public void AdvanceLevel()
@@ -694,8 +695,18 @@ public class GameManager : MonoBehaviour
         if (victoryPanel) victoryPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
         if (gameplayUI) gameplayUI.SetActive(false);
-        // The shop panel was left active in the scene by default, permanently covering the start
-        // panel's Play button since nothing ever hid it - there's currently no button that opens it either.
+        if (shopPanel) shopPanel.SetActive(false);
+    }
+
+    public void OpenShop()
+    {
+        // shopPanel is nested under startPanel, so it only needs its own active
+        // state toggled - it overlays on top of the start screen when shown.
+        if (shopPanel) shopPanel.SetActive(true);
+    }
+
+    public void CloseShop()
+    {
         if (shopPanel) shopPanel.SetActive(false);
     }
 

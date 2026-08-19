@@ -51,7 +51,7 @@ public class UpgradeShop : MonoBehaviour
         {
             if (hasPremiumHat == 0)
             {
-                hatCostText.text = "BUY CROWN: 500 COINS";
+                hatCostText.text = "BUY CROWN: 50 COINS";
             }
             else
             {
@@ -70,7 +70,7 @@ public class UpgradeShop : MonoBehaviour
         {
             if (hasPremiumHat == 0)
             {
-                hatButton.interactable = totalCoins >= 500;
+                hatButton.interactable = totalCoins >= 50;
             }
             else
             {
@@ -115,9 +115,9 @@ public class UpgradeShop : MonoBehaviour
         if (hasPremiumHat == 0)
         {
             // Try to buy premium hat
-            if (GameManager.Instance != null && GameManager.Instance.TotalCoins >= 500)
+            if (GameManager.Instance != null && GameManager.Instance.TotalCoins >= 50)
             {
-                GameManager.Instance.AddCoins(-500);
+                GameManager.Instance.AddCoins(-50);
 
                 PlayerPrefs.SetInt("HasPremiumHat", 1);
                 PlayerPrefs.SetInt("EquippedHat", 1); // Automatically equip on purchase
