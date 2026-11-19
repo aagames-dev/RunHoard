@@ -60,3 +60,4 @@ crashlytics-build.properties
 # OS cruft
 .DS_Store
 .claude/settings.local.json
+CLAUDE.md
